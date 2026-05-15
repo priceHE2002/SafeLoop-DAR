@@ -1,0 +1,38 @@
+{
+  "name": "synthetic_khop",
+  "samples": [
+    {
+      "request_id": "khop_001",
+      "task": "synthetic_khop",
+      "stage": "final_answer",
+      "prompt": "Follow the chain: n0 -> n1. Final node:",
+      "expected": "n1",
+      "metadata": {"hops": 1}
+    },
+    {
+      "request_id": "khop_002",
+      "task": "synthetic_khop",
+      "stage": "final_answer",
+      "prompt": "Follow the chain: n0 -> n1 -> n2. Final node:",
+      "expected": "n2",
+      "metadata": {"hops": 2}
+    },
+    {
+      "request_id": "khop_004",
+      "task": "synthetic_khop",
+      "stage": "final_answer",
+      "prompt": "Follow the chain: n0 -> n1 -> n2 -> n3 -> n4. Final node:",
+      "expected": "n4",
+      "metadata": {"hops": 4}
+    },
+    {
+      "request_id": "khop_008",
+      "task": "synthetic_khop",
+      "stage": "final_answer",
+      "prompt": "Follow the chain: n0 -> n1 -> n2 -> n3 -> n4 -> n5 -> n6 -> n7 -> n8. Final node:",
+      "expected": "n8",
+      "metadata": {"hops": 8}
+    }
+  ]
+}
+

@@ -1,0 +1,9 @@
+{
+  "model_config": "configs/models/mock_loop.json",
+  "benchmark_config": "configs/benchmarks/looped_core.json",
+  "output_dir": "runs/mock_free_generation",
+  "mode": "free_generation",
+  "max_new_tokens": 12,
+  "seed": 7
+}
+

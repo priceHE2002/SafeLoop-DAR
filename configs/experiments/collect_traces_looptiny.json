@@ -1,0 +1,9 @@
+{
+  "model_config": "configs/models/looptiny_mock.json",
+  "benchmark_config": "configs/benchmarks/synthetic_khop.json",
+  "output_dir": "runs/looptiny_traces",
+  "mode": "teacher_forced",
+  "max_new_tokens": 8,
+  "seed": 11
+}
+

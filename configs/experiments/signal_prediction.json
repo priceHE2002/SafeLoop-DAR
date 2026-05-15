@@ -1,0 +1,7 @@
+{
+  "trace_path": "runs/mock_traces/teacher_forced.jsonl",
+  "label_type": "teacher_consistency",
+  "risk_target": 0.02,
+  "output_dir": "runs/signal_prediction"
+}
+

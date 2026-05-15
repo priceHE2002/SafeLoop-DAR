@@ -1,0 +1,9 @@
+{
+  "model_config": "configs/models/ouro_1_4b.json",
+  "benchmark_config": "configs/benchmarks/looped_core.json",
+  "output_dir": "runs/ouro_1_4b_traces",
+  "mode": "teacher_forced",
+  "max_new_tokens": 16,
+  "seed": 7
+}
+

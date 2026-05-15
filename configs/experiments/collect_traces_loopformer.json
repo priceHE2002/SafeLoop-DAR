@@ -1,0 +1,9 @@
+{
+  "model_config": "configs/models/loopformer_3block_8iter.json",
+  "benchmark_config": "configs/benchmarks/looped_core.json",
+  "output_dir": "runs/loopformer_traces",
+  "mode": "teacher_forced",
+  "max_new_tokens": 16,
+  "seed": 7
+}
+

@@ -1,0 +1,28 @@
+[project]
+name = "safeloop-dar"
+version = "0.1.0"
+description = "Risk-calibrated early halting experiments for looped language models"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+model = [
+  "torch",
+  "transformers>=4.54.1",
+  "datasets",
+  "accelerate",
+  "safetensors",
+]
+analysis = [
+  "numpy",
+  "scikit-learn",
+  "matplotlib",
+  "pandas",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+

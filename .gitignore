@@ -1,0 +1,30 @@
+# Runtime artifacts
+runs/
+outputs/
+checkpoints/
+wandb/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment
+.env
+.DS_Store
+
+# Large model / dataset caches
+models/
+datasets/
+*.safetensors
+*.bin
+*.pt
+*.pth
+

@@ -1,0 +1,34 @@
+{
+  "name": "looped_core",
+  "samples": [
+    {
+      "request_id": "math_001",
+      "task": "math",
+      "stage": "final_answer",
+      "prompt": "Question: 123 + 456 = ? Answer:",
+      "expected": "579"
+    },
+    {
+      "request_id": "code_001",
+      "task": "code",
+      "stage": "code_generation",
+      "prompt": "Write a Python function named add_two that returns x + 2.",
+      "expected": "def add_two"
+    },
+    {
+      "request_id": "tool_001",
+      "task": "tool",
+      "stage": "tool_call_json",
+      "prompt": "Call calculator with expression 18*7. JSON:",
+      "expected": "{\"tool\""
+    },
+    {
+      "request_id": "rag_001",
+      "task": "rag",
+      "stage": "final_answer",
+      "prompt": "Context: Ada Lovelace wrote notes on the Analytical Engine. Question: Who wrote the notes?",
+      "expected": "Ada Lovelace"
+    }
+  ]
+}
+
