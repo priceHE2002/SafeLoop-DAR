@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "safeloop-dar"
 version = "0.1.0"
@@ -23,6 +27,8 @@ analysis = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.setuptools.packages.find]
+include = ["safeloop*"]
+
 [tool.ruff]
 line-length = 100
-

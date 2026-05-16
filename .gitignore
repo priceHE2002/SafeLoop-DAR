@@ -20,11 +20,10 @@ env/
 .env
 .DS_Store
 
-# Large model / dataset caches
-models/
-datasets/
+# Large model / dataset caches at repository root
+/models/
+/datasets/
 *.safetensors
 *.bin
 *.pt
 *.pth
-

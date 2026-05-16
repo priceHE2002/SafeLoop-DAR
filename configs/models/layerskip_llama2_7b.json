@@ -1,0 +1,10 @@
+{
+  "adapter": "layerskip",
+  "model_name": "facebook/layerskip-llama2-7B",
+  "max_depth": 32,
+  "trust_remote_code": false,
+  "torch_dtype": "bfloat16",
+  "device_map": "auto",
+  "revision": null
+}
+

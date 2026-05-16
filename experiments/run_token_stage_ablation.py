@@ -5,6 +5,7 @@ from dataclasses import replace
 
 import _bootstrap  # noqa: F401
 from safeloop.evaluation.report import prediction_report
+from safeloop.evaluation.splits import split_by_request
 from safeloop.features.builder import FeatureBuilder
 from safeloop.risk.predictor import OnlineLogisticRiskPredictor
 from safeloop.utils.io import ensure_dir, read_traces, write_json
@@ -39,16 +40,8 @@ def mask_rows(rows, feature_set: str):
     return masked
 
 
-def _bucket(row) -> int:
-    return sum(ord(ch) for ch in row.request_id) % 4
-
-
 def split_rows(rows):
-    train = []
-    test = []
-    for row in rows:
-        (test if _bucket(row) == 0 else train).append(row)
-    return train, test
+    return split_by_request(rows, train_fraction=0.75)
 
 
 def main() -> None:

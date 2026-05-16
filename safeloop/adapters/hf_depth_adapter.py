@@ -98,7 +98,33 @@ class HFCausalDepthAdapter(DepthModelAdapter):
         sample: BenchmarkSample,
         max_new_tokens: int,
     ) -> list[TokenTrace]:
-        return self.collect_teacher_forced_trace(sample, max_new_tokens=max_new_tokens)
+        self.load()
+        traces: list[TokenTrace] = []
+        prefix = sample.prompt
+        for pos in range(max_new_tokens):
+            steps = [self._probe_next_token(prefix, depth) for depth in range(1, self.max_depth + 1)]
+            full_step = steps[-1]
+            token_type = classify_token(full_step.token, sample.stage)
+            traces.append(
+                TokenTrace(
+                    request_id=sample.request_id,
+                    model_name=self.model_name,
+                    task=sample.task,
+                    position=pos,
+                    prefix=prefix,
+                    target_text=full_step.token,
+                    full_depth=self.max_depth,
+                    stage=sample.stage,
+                    token_type=token_type,
+                    steps=steps,
+                    metadata={"adapter": self.__class__.__name__, "free_generation": True},
+                )
+            )
+            prefix = f"{prefix}{full_step.token}"
+            eos_id = getattr(self._tokenizer, "eos_token_id", None)
+            if eos_id is not None and full_step.token_id == eos_id:
+                break
+        return traces
 
     def _set_depth(self, depth: int) -> None:
         if self._model is None:

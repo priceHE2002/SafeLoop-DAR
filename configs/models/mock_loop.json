@@ -1,0 +1,9 @@
+{
+  "adapter": "mock",
+  "model_name": "MockLoop-Deterministic",
+  "max_depth": 8,
+  "hidden_size": 16,
+  "vocab_size": 64,
+  "seed": 7
+}
+

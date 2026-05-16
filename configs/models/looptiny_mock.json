@@ -1,0 +1,9 @@
+{
+  "adapter": "looptiny",
+  "model_name": "LoopTiny-Controlled-Mock",
+  "max_depth": 8,
+  "hidden_size": 16,
+  "vocab_size": 64,
+  "seed": 11
+}
+

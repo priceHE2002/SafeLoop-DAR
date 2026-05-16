@@ -3,13 +3,16 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 from dataclasses import replace
+from pathlib import Path
 
 import _bootstrap  # noqa: F401
 from safeloop.evaluation.risk_compute import frontier_point
+from safeloop.evaluation.splits import split_by_request
 from safeloop.features.builder import FeatureBuilder
 from safeloop.halting.policies import GroupCalibratedPolicy
 from safeloop.risk.calibration import GroupCalibrator
 from safeloop.risk.predictor import OnlineLogisticRiskPredictor
+from safeloop.utils.config import load_experiment_config
 from safeloop.utils.io import ensure_dir, read_traces, write_json
 
 
@@ -31,16 +34,8 @@ FEATURE_SETS = {
 }
 
 
-def _bucket(row) -> int:
-    return sum(ord(ch) for ch in row.request_id) % 3
-
-
 def split_rows(rows):
-    cal = []
-    test = []
-    for row in rows:
-        (test if _bucket(row) == 0 else cal).append(row)
-    return cal, test
+    return split_by_request(rows, train_fraction=0.67)
 
 
 def mask_rows(rows, feature_set: str):
@@ -92,16 +87,31 @@ def oracle_point(rows) -> dict[str, float]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build risk-compute frontier.")
-    parser.add_argument("--trace", required=True)
-    parser.add_argument("--output-dir", default="runs/frontier")
-    parser.add_argument("--targets", default="0.005,0.01,0.02,0.05,0.1")
-    parser.add_argument("--label-type", default="teacher_consistency")
+    parser.add_argument("--config")
+    parser.add_argument("--trace")
+    parser.add_argument("--output-dir")
+    parser.add_argument("--targets")
+    parser.add_argument("--label-type")
     args = parser.parse_args()
 
-    traces = read_traces(args.trace)
-    rows = FeatureBuilder().build_many(traces, label_type=args.label_type)
+    cfg = load_experiment_config(args.config) if args.config else {}
+    root = Path(cfg.get("_project_root", "."))
+    trace = args.trace or cfg.get("trace_path")
+    if not trace:
+        raise SystemExit("--trace or config.trace_path is required")
+    output_dir = args.output_dir or cfg.get("output_dir", "runs/frontier")
+    trace = str(Path(trace) if Path(trace).is_absolute() else root / trace)
+    output_dir = str(Path(output_dir) if Path(output_dir).is_absolute() else root / output_dir)
+    target_value = args.targets or cfg.get("risk_targets", "0.005,0.01,0.02,0.05,0.1")
+    label_type = args.label_type or cfg.get("label_type", "teacher_consistency")
+
+    traces = read_traces(trace)
+    rows = FeatureBuilder().build_many(traces, label_type=label_type)
     cal_rows, test_rows = split_rows(rows)
-    targets = [float(item) for item in args.targets.split(",")]
+    if isinstance(target_value, list):
+        targets = [float(item) for item in target_value]
+    else:
+        targets = [float(item) for item in str(target_value).split(",")]
     points = []
     max_depth = max((row.depth for row in rows), default=1)
     for depth in range(1, max_depth + 1):
@@ -126,7 +136,7 @@ def main() -> None:
             point["thresholds"] = calibrator.thresholds
             points.append(point)
 
-    out_dir = ensure_dir(args.output_dir)
+    out_dir = ensure_dir(output_dir)
     write_json(out_dir / "frontier.json", {"points": points})
 
 

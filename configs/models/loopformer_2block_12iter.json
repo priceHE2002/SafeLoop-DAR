@@ -1,0 +1,10 @@
+{
+  "adapter": "loopformer",
+  "model_name": "armenjeddi/LoopFormer-2block-12iterations",
+  "max_depth": 12,
+  "trust_remote_code": true,
+  "torch_dtype": "bfloat16",
+  "device_map": "auto",
+  "revision": null
+}
+

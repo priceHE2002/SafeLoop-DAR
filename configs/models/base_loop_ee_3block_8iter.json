@@ -1,0 +1,10 @@
+{
+  "adapter": "loopformer",
+  "model_name": "armenjeddi/Base-Loop-EE-3block-8iterations",
+  "max_depth": 8,
+  "trust_remote_code": true,
+  "torch_dtype": "bfloat16",
+  "device_map": "auto",
+  "revision": null
+}
+

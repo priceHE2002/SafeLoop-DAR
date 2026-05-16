@@ -1,0 +1,10 @@
+{
+  "adapter": "ouro",
+  "model_name": "ByteDance/Ouro-1.4B",
+  "max_depth": 4,
+  "trust_remote_code": true,
+  "torch_dtype": "bfloat16",
+  "device_map": "auto",
+  "revision": null
+}
+

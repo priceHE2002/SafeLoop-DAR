@@ -4,21 +4,14 @@ import argparse
 
 import _bootstrap  # noqa: F401
 from safeloop.features.builder import FeatureBuilder
+from safeloop.evaluation.splits import split_by_request
 from safeloop.risk.calibration import GroupCalibrator
 from safeloop.risk.predictor import OnlineLogisticRiskPredictor
 from safeloop.utils.io import ensure_dir, read_traces, write_json
 
 
-def _bucket(row) -> int:
-    return sum(ord(ch) for ch in row.request_id) % 2
-
-
 def split_rows(rows):
-    cal = []
-    test = []
-    for row in rows:
-        (cal if _bucket(row) == 0 else test).append(row)
-    return cal, test
+    return split_by_request(rows, train_fraction=0.5)
 
 
 def empirical_risk(rows, scores, calibrator):
