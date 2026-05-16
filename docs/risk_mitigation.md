@@ -99,7 +99,18 @@ average depth
 estimated compute saving
 measured latency
 probe overhead
+controller overhead
+effective speedup
+break-even rate
 ```
+
+本仓库将该风险落实为 E10 `Overhead-Aware Risk-Compute Frontier`：先用可配置 profile 估算
+hidden-only、hybrid、logits-every-depth 三种路径，再在正式论文实验中替换为目标 GPU 的实测开销。
+
+The repository turns this risk into E10, `Overhead-Aware Risk-Compute Frontier`:
+first estimate hidden-only, hybrid, and logits-every-depth paths with
+configurable profiles, then replace the defaults with measured costs on the
+target GPU for paper experiments.
 
 ## 6. Benchmark 过多导致主线分散
 
@@ -124,4 +135,3 @@ Math / Code / Tool-Agent representative tasks
 
 Other models such as MELT, PLT, and Attractor Models can be optional appendix
 studies.
-

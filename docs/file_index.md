@@ -47,8 +47,9 @@ discussion, paper reproducibility, and future engineering extensions.
   policies.
 
 - `safeloop/evaluation/`
-  指标计算与 risk-compute frontier 汇总。
-  Metric computation and risk-compute frontier summarization.
+  指标计算、risk-compute frontier 汇总与开销感知 frontier 估算。
+  Metric computation, risk-compute frontier summarization, and overhead-aware
+  frontier estimation.
 
 ## 实验入口 / Experiment Entrypoints
 
@@ -81,6 +82,11 @@ discussion, paper reproducibility, and future engineering extensions.
   分析固定 loop budget 下的风险变化。
   Analyze risk under fixed loop budgets.
 
+- `experiments/run_overhead_frontier.py`
+  读取 `frontier.json`，估算不同刹车系统实现 profile 下的有效 speedup 与 break-even。
+  Read `frontier.json` and estimate effective speedup and break-even behavior
+  under different controller implementation profiles.
+
 - `experiments/run_free_generation.py`
   收集自回归生成 trace，用于后续端到端任务指标评估。
   Collect autoregressive generation traces for later end-to-end task metrics.
@@ -93,6 +99,10 @@ discussion, paper reproducibility, and future engineering extensions.
 - `scripts/plot_frontier.py`
   将 `frontier.json` 打印成便于阅读的 risk-compute 表格。
   Print `frontier.json` as a readable risk-compute table.
+
+- `scripts/plot_overhead_frontier.py`
+  将 `overhead_frontier.json` 打印成便于比较的开销感知 frontier 表格。
+  Print `overhead_frontier.json` as a readable overhead-aware frontier table.
 
 - `docs/experiment_plan.md`
   详细实验任务书，包含每组实验的目的、命令、输出、指标和预期结论。

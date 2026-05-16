@@ -1,0 +1,32 @@
+{
+  "frontier_path": "runs/frontier/frontier.json",
+  "output_dir": "runs/overhead_frontier",
+  "loop_step_ms": 1.0,
+  "full_depth": null,
+  "overhead_profiles": [
+    {
+      "name": "hidden_only_fast_path",
+      "brake_ms_per_depth": 0.01,
+      "scheduler_ms_per_token": 0.005,
+      "cpu_sync_ms_per_depth": 0.0,
+      "lm_head_ms_per_depth": 0.0,
+      "fixed_ms_per_token": 0.0
+    },
+    {
+      "name": "hybrid_exit_only_lm_head",
+      "brake_ms_per_depth": 0.01,
+      "scheduler_ms_per_token": 0.01,
+      "cpu_sync_ms_per_depth": 0.0,
+      "lm_head_ms_per_depth": 0.0,
+      "fixed_ms_per_token": 0.05
+    },
+    {
+      "name": "logits_every_depth_cpu_sync",
+      "brake_ms_per_depth": 0.01,
+      "scheduler_ms_per_token": 0.02,
+      "cpu_sync_ms_per_depth": 0.05,
+      "lm_head_ms_per_depth": 0.2,
+      "fixed_ms_per_token": 0.0
+    }
+  ]
+}

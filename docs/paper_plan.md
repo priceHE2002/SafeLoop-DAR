@@ -33,11 +33,15 @@ should combine:
    Risk-calibrated halting controls in-domain premature-exit risk while reducing
    average loop depth.
 
-3. **Token / 阶段感知校准可以降低高代价错误。**  
+3. **刹车系统开销必须低于节省的 loop depth，hidden-only fast path 是推荐实现路径。**
+   Controller overhead must be lower than saved loop depth; the hidden-only fast
+   path is the recommended implementation path.
+
+4. **Token / 阶段感知校准可以降低高代价错误。**
    Token/stage-aware calibration reduces high-cost errors for math, code,
    JSON/tool calls, and retrieved entities.
 
-4. **深度状态信号可以有限迁移到 Ouro 以外的循环或深度自适应模型。**  
+5. **深度状态信号可以有限迁移到 Ouro 以外的循环或深度自适应模型。**
    Depth-state signals transfer beyond Ouro to other looped or depth-adaptive
    models in a limited and explicitly qualified sense.
 
@@ -66,4 +70,3 @@ The central claim is:
 > Depth-state stability and residual novelty are useful predictors of safe
 > halting; with risk calibration, they can reduce average recurrent computation
 > under controlled risk.
-

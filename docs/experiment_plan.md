@@ -571,7 +571,135 @@ latency
 
 ---
 
-## 11. 推荐运行顺序 / Recommended Run Order
+## 11. 实验 E10：Overhead-Aware Risk-Compute Frontier
+
+### 目的 / Goal
+
+验证动态退出不只是减少平均循环深度，还要在考虑刹车系统自身开销后真正降低每 token 延迟。
+
+Verify that dynamic halting reduces per-token latency after accounting for the
+controller overhead, not merely average loop depth.
+
+### 核心问题 / Key Questions
+
+- hidden-only 刹车路径是否明显小于一轮 loop 计算？
+- 每轮 full-vocab logits + CPU sync 是否会抵消 early halting 收益？
+- SafeLoop-DAR 的 `effective_speedup` 是否在主要风险目标下仍大于 1？
+- 哪些实现 profile 的 `min_saved_depth_to_break_even` 过高，不适合作为 serving fast path？
+
+- Is the hidden-only controller much cheaper than one loop step?
+- Does full-vocab logits plus CPU sync at every depth erase early-halting gains?
+- Does SafeLoop-DAR keep `effective_speedup > 1` under major risk targets?
+- Which implementation profiles have too high a `min_saved_depth_to_break_even`
+  for serving?
+
+### 输入 / Input
+
+该实验读取 E3 产生的 `frontier.json`，不重新运行模型：
+
+This experiment reads `frontier.json` from E3 and does not rerun the model:
+
+```text
+runs/frontier/frontier.json
+configs/experiments/overhead_frontier.json
+```
+
+### 命令 / Commands
+
+Mock:
+
+```bash
+python experiments/run_frontier.py \
+  --config configs/experiments/frontier.json
+
+python experiments/run_overhead_frontier.py \
+  --config configs/experiments/overhead_frontier.json
+
+python scripts/plot_overhead_frontier.py \
+  --overhead-frontier runs/overhead_frontier/overhead_frontier.json
+```
+
+Ouro-1.4B:
+
+```bash
+python experiments/run_frontier.py \
+  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
+  --output-dir runs/ouro_1_4b_frontier
+
+python experiments/run_overhead_frontier.py \
+  --frontier runs/ouro_1_4b_frontier/frontier.json \
+  --output-dir runs/ouro_1_4b_overhead_frontier \
+  --loop-step-ms <measured_loop_step_ms> \
+  --full-depth 4
+```
+
+### 默认开销 profile / Default Overhead Profiles
+
+```text
+hidden_only_fast_path
+  每轮只计算 hidden delta / residual novelty / depth stability，状态留在 GPU。
+  Hidden-delta, residual-novelty, and depth-stability features only; states stay on GPU.
+
+hybrid_exit_only_lm_head
+  每轮用 hidden-only 判断，真正退出时才走一次 LM head。
+  Hidden-only decisions at each depth; one LM head call only at exit.
+
+logits_every_depth_cpu_sync
+  每轮都算 full-vocab logits 并同步到 CPU，是应避免的反例路径。
+  Full-vocab logits and CPU sync at every depth; this is the anti-pattern.
+```
+
+### 输出 / Outputs
+
+```text
+runs/overhead_frontier/overhead_frontier.json
+```
+
+### 指标 / Metrics
+
+```text
+baseline_full_depth_ms_per_token
+saved_loop_steps
+model_compute_ms_per_token
+brake_overhead_ms_per_token
+total_ms_per_token
+gross_saved_ms_per_token
+net_saved_ms_per_token
+effective_speedup
+overhead_loop_step_equivalent
+min_saved_depth_to_break_even
+is_break_even
+overhead_exceeds_one_loop_step
+overhead_share
+```
+
+### 判定标准 / Decision Rule
+
+动态退出真正值得部署，需要同时满足：
+
+For dynamic halting to be deployment-worthy:
+
+```text
+effective_speedup > 1
+net_saved_ms_per_token > 0
+overhead_loop_step_equivalent < saved_loop_steps
+风险指标不显著超过目标风险
+```
+
+### 预期结论 / Expected Conclusion
+
+如果实现为 GPU-resident hidden-only fast path，刹车开销应明显小于一轮 loop step，SafeLoop-DAR 的净收益应保持为正。
+如果实现为每轮 full-vocab logits + CPU sync，则可能出现 `overhead_exceeds_one_loop_step = true`，说明该实现路径不适合 serving。
+
+With a GPU-resident hidden-only fast path, controller overhead should be far
+below one loop step and SafeLoop-DAR should retain positive net savings. With
+full-vocab logits plus CPU sync at every depth, `overhead_exceeds_one_loop_step`
+may become true, showing that this implementation path is unsuitable for
+serving.
+
+---
+
+## 12. 推荐运行顺序 / Recommended Run Order
 
 ### P0: 管线验证 / Pipeline validation
 
@@ -579,6 +707,7 @@ latency
 E0 mock smoke test
 E2 mock signal prediction
 E3 mock frontier
+E10 mock overhead-aware frontier
 E4 mock calibration
 ```
 
@@ -588,6 +717,7 @@ E4 mock calibration
 Ouro-1.4B trace
 Ouro-1.4B signal prediction
 Ouro-1.4B frontier
+Ouro-1.4B overhead-aware frontier
 Ouro-1.4B calibration
 Ouro-1.4B token/stage ablation
 ```
@@ -614,7 +744,7 @@ runtime overhead analysis
 
 ---
 
-## 12. 复现记录模板 / Reproducibility Record Template
+## 13. 复现记录模板 / Reproducibility Record Template
 
 每次正式实验建议保存以下信息：
 
@@ -655,12 +785,13 @@ python -m pip freeze > runs/<run_name>/environment.txt
 
 ---
 
-## 13. 当前限制 / Current Limitations
+## 14. 当前限制 / Current Limitations
 
 - 真实 Ouro / LoopFormer depth-control 字段依赖各自 remote code，需要小样本 smoke test 验证。
 - 当前 free-generation 主要收集 trace，任务级 metric 还需要接入具体 benchmark evaluator。
 - `task_degradation` label 当前支持 metadata 接口，真实任务需补充 evaluator 写入。
 - Cross-domain calibration 不应声明 formal guarantee。
+- Overhead-aware frontier 当前默认是估算模型；正式论文需要用目标 GPU 的实测 `loop_step_ms`、LM head 开销和调度开销替换默认 profile。
 
 Current limitations:
 
@@ -671,4 +802,6 @@ Current limitations:
 - `task_degradation` labels are supported through metadata, but real tasks need
   evaluators to populate them.
 - Cross-domain calibration should not be presented as a formal guarantee.
-
+- The overhead-aware frontier is currently an estimation model; paper experiments
+  should replace default profiles with measured `loop_step_ms`, LM-head overhead,
+  and scheduler overhead on the target GPU.

@@ -69,16 +69,21 @@ continue_or_halt =
    比较 fixed depth、oracle halting、confidence-only、DAR no token-stage、
    SafeLoop-DAR 在不同目标风险下的平均 depth 和错误风险。
 
-3. **Calibration validity / 校准有效性**
+3. **Overhead-aware frontier / 开销感知风险-计算前沿**
+   将平均 depth 节省进一步换算成估计延迟、刹车系统开销、有效吞吐收益和 break-even 判断。
+   Convert average-depth savings into estimated latency, controller overhead,
+   effective speedup, and break-even decisions.
+
+4. **Calibration validity / 校准有效性**
    在 in-domain split 上验证目标风险 `ε` 与 empirical risk 的关系。
 
-4. **Token/stage ablation / Token 与阶段消融**
+5. **Token/stage ablation / Token 与阶段消融**
    验证 token/stage features 是否能降低高风险 token 的提前退出错误。
 
-5. **Residual convergence / 残差收敛分析**
+6. **Residual convergence / 残差收敛分析**
    验证 residual novelty 与下一 depth 的 label 改善是否相关。
 
-6. **Cross-model validation / 跨模型验证**
+7. **Cross-model validation / 跨模型验证**
    提供 Ouro、LoopFormer、Base-Loop-EE、TMLT-EE、LayerSkip、LoopTiny/mock 的适配入口。
 
 ---
@@ -105,6 +110,7 @@ SafeLoop-DAR/
 │   ├── run_token_stage_ablation.py
 │   ├── run_residual_convergence.py
 │   ├── run_budget_scaling.py
+│   ├── run_overhead_frontier.py
 │   ├── run_free_generation.py
 │   └── run_transfer.py
 ├── safeloop/
@@ -113,7 +119,7 @@ SafeLoop-DAR/
 │   ├── features/               # confidence、DAR、token-stage features
 │   ├── risk/                   # labels、risk predictor、calibration
 │   ├── halting/                # halting policies
-│   ├── evaluation/             # metrics、splits、frontier
+│   ├── evaluation/             # metrics、splits、frontier、overhead model
 │   ├── controlled/             # LoopTiny-style controlled tasks
 │   └── workloads/              # benchmark loaders
 └── tests/
@@ -277,6 +283,42 @@ python experiments/run_budget_scaling.py \
 runs/budget_scaling/budget_scaling.json
 ```
 
+### Step 8: 开销感知 frontier / Overhead-aware frontier
+
+该步骤读取 Step 3 产生的 `frontier.json`，不重新跑模型，用不同 serving-path 假设估算刹车系统开销是否抵消节省的 loop depth。
+
+This step reads `frontier.json` from Step 3 and does not rerun the model. It
+estimates whether the halting controller overhead offsets saved loop depth
+under different serving-path assumptions.
+
+```bash
+python experiments/run_overhead_frontier.py \
+  --config configs/experiments/overhead_frontier.json
+```
+
+输出 / Outputs:
+
+```text
+runs/overhead_frontier/overhead_frontier.json
+```
+
+可读表格 / Human-readable table:
+
+```bash
+python scripts/plot_overhead_frontier.py \
+  --overhead-frontier runs/overhead_frontier/overhead_frontier.json
+```
+
+默认比较三种刹车系统实现假设：
+
+Default controller profiles:
+
+```text
+hidden_only_fast_path        # hidden-state features only, GPU-resident
+hybrid_exit_only_lm_head     # hidden-state features plus one exit-time LM head
+logits_every_depth_cpu_sync  # full-vocab logits and CPU sync at every depth
+```
+
 ---
 
 ## 6. 真实模型实验入口 / Real Model Entrypoints
@@ -359,6 +401,11 @@ python experiments/run_residual_convergence.py \
   不同方法和目标风险下的平均 depth 与风险。
   Average depth and risk under different methods and target risks.
 
+- `overhead_frontier.json`
+  在不同刹车系统开销假设下的有效延迟、净节省、break-even 和 speedup。
+  Effective latency, net saving, break-even status, and speedup under different
+  controller overhead assumptions.
+
 - `calibration.json`
   target risk、empirical risk、coverage 和 group thresholds。
   Target risk, empirical risk, coverage, and group thresholds.
@@ -385,6 +432,11 @@ python experiments/run_residual_convergence.py \
   Real model depth-control fields depend on remote code; validate with a small
   smoke test before large runs.
 
+- 开销感知实验中的 `loop_step_ms` 和 profile 参数是 serving-path 假设；论文实验应在目标 GPU 上实测后替换默认值。
+  `loop_step_ms` and profile parameters in the overhead experiment are
+  serving-path assumptions; replace defaults with measurements on the target GPU
+  for paper experiments.
+
 ---
 
 ## 9. 推荐阅读 / Recommended Docs
@@ -394,4 +446,3 @@ python experiments/run_residual_convergence.py \
 - [论文计划 / Paper Plan](docs/paper_plan.md)
 - [风险控制 / Risk Mitigation](docs/risk_mitigation.md)
 - [文件索引 / File Index](docs/file_index.md)
-
