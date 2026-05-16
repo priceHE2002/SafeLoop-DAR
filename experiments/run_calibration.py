@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 
 import _bootstrap  # noqa: F401
 from safeloop.features.builder import FeatureBuilder
@@ -15,15 +16,26 @@ def split_rows(rows):
 
 
 def empirical_risk(rows, scores, calibrator):
-    accepted = [
-        row.label
-        for row, score in zip(rows, scores)
-        if calibrator.should_exit(row.group, score)
-    ]
+    accepted = [row.label for row, score in zip(rows, scores) if calibrator.should_exit(row.group, score)]
+    by_group: dict[str, list[tuple[int, bool]]] = defaultdict(list)
+    for row, score in zip(rows, scores):
+        by_group[row.group].append((row.label, calibrator.should_exit(row.group, score)))
     return {
         "accepted": len(accepted),
         "coverage": len(accepted) / max(len(rows), 1),
         "risk": sum(accepted) / max(len(accepted), 1),
+        "by_group": {
+            group: {
+                "tokens": float(len(values)),
+                "accepted": float(sum(1 for _, is_accepted in values if is_accepted)),
+                "coverage": sum(1 for _, is_accepted in values if is_accepted) / max(len(values), 1),
+                "risk": (
+                    sum(label for label, is_accepted in values if is_accepted)
+                    / max(sum(1 for _, is_accepted in values if is_accepted), 1)
+                ),
+            }
+            for group, values in sorted(by_group.items())
+        },
     }
 
 

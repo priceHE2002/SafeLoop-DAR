@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import _bootstrap  # noqa: F401
-from safeloop.evaluation.risk_compute import frontier_point
+from safeloop.evaluation.risk_compute import frontier_point, summarize_selected_rows
 from safeloop.evaluation.splits import split_by_request
 from safeloop.features.builder import FeatureBuilder
 from safeloop.halting.policies import GroupCalibratedPolicy
@@ -45,7 +45,7 @@ def mask_rows(rows, feature_set: str):
     return [replace(row, features={k: v for k, v in row.features.items() if k in allowed}) for row in rows]
 
 
-def fixed_depth_point(rows, depth: int) -> dict[str, float]:
+def fixed_depth_point(rows, depth: int) -> dict:
     grouped = defaultdict(list)
     for row in rows:
         grouped[(row.request_id, row.position)].append(row)
@@ -58,14 +58,10 @@ def fixed_depth_point(rows, depth: int) -> dict[str, float]:
                 choice = row
                 break
         selected.append(choice)
-    return {
-        "avg_depth": sum(row.depth for row in selected) / max(len(selected), 1),
-        "risk": sum(row.label for row in selected) / max(len(selected), 1),
-        "tokens": float(len(selected)),
-    }
+    return summarize_selected_rows(selected, total_tokens=len(grouped))
 
 
-def oracle_point(rows) -> dict[str, float]:
+def oracle_point(rows) -> dict:
     grouped = defaultdict(list)
     for row in rows:
         grouped[(row.request_id, row.position)].append(row)
@@ -78,11 +74,7 @@ def oracle_point(rows) -> dict[str, float]:
                 choice = row
                 break
         selected.append(choice)
-    return {
-        "avg_depth": sum(row.depth for row in selected) / max(len(selected), 1),
-        "risk": sum(row.label for row in selected) / max(len(selected), 1),
-        "tokens": float(len(selected)),
-    }
+    return summarize_selected_rows(selected, total_tokens=len(grouped))
 
 
 def main() -> None:

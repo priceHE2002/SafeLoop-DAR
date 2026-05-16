@@ -81,6 +81,19 @@ discussion, paper reproducibility, and future engineering extensions.
   分析固定 loop budget 下的风险变化。
   Analyze risk under fixed loop budgets.
 
+- `experiments/run_free_generation.py`
+  收集自回归生成 trace，用于后续端到端任务指标评估。
+  Collect autoregressive generation traces for later end-to-end task metrics.
+
+- `experiments/run_transfer.py`
+  在一个 trace 上训练风险预测器，并在另一个 trace 上评估跨模型或跨任务迁移。
+  Train a risk predictor on one trace and evaluate cross-model or cross-task
+  transfer on another trace.
+
+- `scripts/plot_frontier.py`
+  将 `frontier.json` 打印成便于阅读的 risk-compute 表格。
+  Print `frontier.json` as a readable risk-compute table.
+
 - `docs/experiment_plan.md`
   详细实验任务书，包含每组实验的目的、命令、输出、指标和预期结论。
   Detailed experiment plan with goals, commands, outputs, metrics, and expected
