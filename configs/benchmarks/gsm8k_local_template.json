@@ -1,0 +1,14 @@
+{
+  "name": "gsm8k_local",
+  "task": "gsm8k",
+  "stage": "final_answer",
+  "source_path": "../../data/gsm8k_test.jsonl",
+  "format": "jsonl",
+  "limit": 256,
+  "field_map": {
+    "request_id": "id",
+    "expected": "answer"
+  },
+  "prompt_template": "Question: {question}\nAnswer:",
+  "metadata_fields": ["question", "answer"]
+}

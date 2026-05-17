@@ -76,7 +76,11 @@ class MockLoopAdapter(DepthModelAdapter):
                 stage=sample.stage,
                 token_type=token_type,
                 steps=steps,
-                metadata={"free_generation": free_generation, "required_depth": required_depth},
+                metadata={
+                    "free_generation": free_generation,
+                    "required_depth": required_depth,
+                    "sample_metadata": dict(sample.metadata or {}) | {"expected": sample.expected},
+                },
             )
             traces.append(trace)
             emitted = self._first_stable_token(steps) if free_generation else final_token

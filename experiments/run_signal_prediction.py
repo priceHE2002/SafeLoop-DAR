@@ -5,15 +5,11 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 from safeloop.evaluation.report import prediction_report
-from safeloop.evaluation.splits import split_by_request
+from safeloop.evaluation.splits import split_by_request_three_way
 from safeloop.features.builder import FeatureBuilder
 from safeloop.risk.predictor import OnlineLogisticRiskPredictor
 from safeloop.utils.config import load_experiment_config
 from safeloop.utils.io import ensure_dir, read_traces, write_json, write_jsonl
-
-
-def split_rows(rows, train_ratio: float = 0.7):
-    return split_by_request(rows, train_fraction=train_ratio)
 
 
 def main() -> None:
@@ -22,6 +18,7 @@ def main() -> None:
     parser.add_argument("--trace")
     parser.add_argument("--output-dir")
     parser.add_argument("--label-type")
+    parser.add_argument("--split-salt", default="")
     args = parser.parse_args()
 
     cfg = load_experiment_config(args.config) if args.config else {}
@@ -32,21 +29,29 @@ def main() -> None:
     output_dir = args.output_dir or cfg.get("output_dir", "runs/signal_prediction")
     trace = str(Path(trace) if Path(trace).is_absolute() else root / trace)
     output_dir = str(Path(output_dir) if Path(output_dir).is_absolute() else root / output_dir)
-    label_type = args.label_type or cfg.get("label_type", "teacher_consistency")
+    label_type = args.label_type or cfg.get("label_type", "task_degradation")
 
     traces = read_traces(trace)
     rows = FeatureBuilder().build_many(traces, label_type=label_type)
-    train_rows, test_rows = split_rows(rows)
+    train_rows, calibration_rows, test_rows, split_ids = split_by_request_three_way(
+        rows,
+        train_fraction=float(cfg.get("train_fraction", 0.5)),
+        calibration_fraction=float(cfg.get("calibration_fraction", 0.25)),
+        salt=args.split_salt or str(cfg.get("split_salt", "")),
+    )
     predictor = OnlineLogisticRiskPredictor().fit(train_rows)
     train_scores = predictor.predict_rows(train_rows)
+    calibration_scores = predictor.predict_rows(calibration_rows)
     test_scores = predictor.predict_rows(test_rows)
 
     out_dir = ensure_dir(output_dir)
     write_json(out_dir / "predictor.json", predictor.to_dict())
+    write_json(out_dir / "splits.json", split_ids.to_dict())
     write_json(
         out_dir / "metrics.json",
         {
             "train": prediction_report(train_rows, train_scores),
+            "calibration": prediction_report(calibration_rows, calibration_scores),
             "test": prediction_report(test_rows, test_scores),
         },
     )

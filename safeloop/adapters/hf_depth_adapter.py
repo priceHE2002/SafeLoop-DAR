@@ -87,7 +87,10 @@ class HFCausalDepthAdapter(DepthModelAdapter):
                     stage=sample.stage,
                     token_type=token_type,
                     steps=steps,
-                    metadata={"adapter": self.__class__.__name__},
+                    metadata={
+                        "adapter": self.__class__.__name__,
+                        "sample_metadata": dict(sample.metadata or {}) | {"expected": sample.expected},
+                    },
                 )
             )
             prefix = f"{prefix} {target_token}".strip()
@@ -117,7 +120,11 @@ class HFCausalDepthAdapter(DepthModelAdapter):
                     stage=sample.stage,
                     token_type=token_type,
                     steps=steps,
-                    metadata={"adapter": self.__class__.__name__, "free_generation": True},
+                    metadata={
+                        "adapter": self.__class__.__name__,
+                        "free_generation": True,
+                        "sample_metadata": dict(sample.metadata or {}) | {"expected": sample.expected},
+                    },
                 )
             )
             prefix = f"{prefix}{full_step.token}"

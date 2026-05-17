@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from safeloop.risk.calibration import GroupCalibrator
 from safeloop.risk.predictor import OnlineLogisticRiskPredictor
 from safeloop.types import FeatureRow, HaltingDecision
+
+
+class CalibratorLike(Protocol):
+    def threshold_for(self, group: str) -> float: ...
+    def should_exit(self, group: str, score: float) -> bool: ...
 
 
 @dataclass
@@ -45,7 +51,7 @@ class ScoreThresholdPolicy:
 @dataclass
 class GroupCalibratedPolicy:
     predictor: OnlineLogisticRiskPredictor
-    calibrator: GroupCalibrator
+    calibrator: GroupCalibrator | CalibratorLike
 
     def decide(self, row: FeatureRow) -> HaltingDecision:
         score = self.predictor.predict_features(row.features)
@@ -59,4 +65,3 @@ class GroupCalibratedPolicy:
             threshold=threshold,
             group=row.group,
         )
-

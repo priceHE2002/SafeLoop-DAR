@@ -1,807 +1,747 @@
-# 详细实验方案 / Detailed Experiment Plan
+# 实验计划 / Experiment Plan
 
-本文档给出 SafeLoop-DAR 的完整实验设计。每组实验都包含：目的、输入、命令、输出文件、指标和预期结论。
+本文档对应 SafeLoop-DAR 的最新研究方向：
 
-This document provides the full experimental plan for SafeLoop-DAR. Each
-experiment includes its goal, inputs, commands, output files, metrics, and
-expected conclusions.
+This document describes the latest SafeLoop-DAR research direction:
+
+```text
+Think Less, Think Safely:
+Risk-Calibrated Halting and Halt-Aware Training for Looped Language Models
+```
+
+研究不再只做 post-hoc early halting，而是形成三层证据：
+
+The study is no longer only post-hoc early halting. It builds three evidence
+layers:
+
+```text
+Layer 1: Post-hoc SafeLoop-DAR
+  不改模型，证明 depth-state signals 可以预测 task degradation risk。
+
+Layer 2: Self-trained TinyLoopLM
+  自己训练一个小型 LoopLM，证明 halt-aware objective 能改善 risk-compute frontier。
+
+Layer 3: Real LoopLM validation
+  在 Ouro-1.4B / Ouro-2.6B / LoopFormer 等模型上验证真实任务和真实延迟。
+```
 
 ---
 
-## 0. 总体实验矩阵 / Overall Experiment Matrix
+## 0. 主问题 / Main Question
 
-### 0.1 模型层级 / Model Levels
+```text
+Can looped language models learn or infer when to stop recurrent computation
+while controlling task degradation risk?
+```
+
+中文表述：
+
+```text
+循环语言模型能否在控制任务退化风险的前提下，学会或推断何时停止继续循环计算？
+```
+
+核心假设：
+
+Core hypotheses:
+
+```text
+H1: Depth-state trajectories contain useful halting-risk signals.
+H2: UCB / conformal-style calibration can control in-domain premature-halting risk.
+H3: Halt-aware training improves the risk-compute frontier beyond post-hoc control.
+H4: The saved recurrent-depth compute can translate into positive wall-clock speedup.
+```
+
+---
+
+## 1. 研究对象 / Research Objects
+
+### 1.1 模型 / Models
 
 | 层级 | 模型 | 目的 |
 |---|---|---|
-| Primary | Ouro-1.4B, Ouro-2.6B | 主验证：真实 Looped LM 上的 dynamic halting |
-| Secondary | LoopFormer, Base-Loop-EE, TMLT-EE | 非 Ouro 循环模型泛化 |
-| Transfer | LayerSkip-Llama2-7B | layer-wise depth 的辅助泛化 |
-| Controlled | MockLoop, LoopTiny-style synthetic | 机制验证与管线 smoke test |
+| Mock | MockLoop | pipeline smoke test |
+| Controlled | LoopTiny controlled state | 快速机制验证 |
+| Self-trained | TinyLoopLM | 自己训练小型 LoopLM，验证 halt-aware objective |
+| Real primary | Ouro-1.4B | 真实主实验 |
+| Real scaling | Ouro-2.6B | scaling 验证 |
+| Generalization | LoopFormer / LayerSkip | 跨模型验证 |
 
-| Level | Models | Purpose |
+| Level | Model | Purpose |
 |---|---|---|
-| Primary | Ouro-1.4B, Ouro-2.6B | Main validation on real looped LMs |
-| Secondary | LoopFormer, Base-Loop-EE, TMLT-EE | Generalization beyond Ouro |
-| Transfer | LayerSkip-Llama2-7B | Auxiliary layer-wise depth transfer |
-| Controlled | MockLoop, LoopTiny-style synthetic | Mechanism study and smoke tests |
+| Mock | MockLoop | pipeline smoke test |
+| Controlled | LoopTiny controlled state | quick mechanism validation |
+| Self-trained | TinyLoopLM | train a small LoopLM and test halt-aware objective |
+| Real primary | Ouro-1.4B | main real-model experiments |
+| Real scaling | Ouro-2.6B | scaling validation |
+| Generalization | LoopFormer / LayerSkip | cross-model validation |
 
-### 0.2 任务层级 / Task Levels
+### 1.2 任务 / Tasks
 
-当前仓库内置轻量 benchmark：
+| 类别 | Benchmark | 主指标 |
+|---|---|---|
+| Controlled | synthetic_mixed_control_60 | known group risk, task degradation |
+| Math | GSM8K | final answer exact match |
+| Math | MATH500 | boxed answer exact match |
+| Code | HumanEval-lite / HumanEval | pass@1 |
+| Structured | JSON schema subset | schema validity |
+| Tool | executable tool-call subset | tool execution success |
+| RAG | entity QA subset | entity correctness |
 
-Built-in lightweight benchmark:
+---
+
+## 2. 风险标签 / Risk Labels
+
+### 2.1 Token Consistency Risk
 
 ```text
-configs/benchmarks/looped_core.json
-configs/benchmarks/synthetic_khop.json
+early-depth token != full-depth token
 ```
 
-论文级扩展建议：
+用途：debug、机制分析、residual convergence。不能作为主结论。
 
-Recommended paper-level extensions:
+Use: debugging, mechanism analysis, residual convergence. It is not a main
+paper claim.
+
+### 2.2 Task Degradation Risk
+
+主风险标签：
+
+Main risk label:
 
 ```text
-Math: GSM8K, MATH500
-Reasoning: BBH subset
-Code: HumanEval, LiveCodeBench-lite
-Tool/Agent: BFCL, Agentic RAG
-RAG: HotpotQA / 2WikiMultihopQA optional
+task_degradation(depth) = 1
+if early-depth output is worse than full-depth output under a task evaluator
+```
+
+实现入口：
+
+Implementation:
+
+```text
+experiments/run_task_evaluation.py
+safeloop/evaluation/task_degradation.py
+safeloop/evaluation/tasks/
+```
+
+### 2.3 High-Cost Semantic Risk
+
+高风险错误：
+
+High-cost errors:
+
+```text
+math final number wrong
+code identifier / unit-test failure
+JSON field or schema invalid
+tool argument wrong
+retrieved entity missing or wrong
 ```
 
 ---
 
-## 1. 实验 E0：Mock Smoke Test
+## 3. 数据划分与校准 / Splits And Calibration
 
-### 目的 / Goal
+所有正式结果使用 request-level 三分：
 
-验证整个实验管线是否可以不依赖真实模型权重运行：
-
-Validate the full pipeline without loading real model weights:
+All formal results use request-level three-way splits:
 
 ```text
-trace collection -> feature extraction -> risk prediction -> calibration -> frontier
+train        50%  train risk predictor
+calibration 25%  fit group threshold / UCB threshold
+test         25%  final evaluation only
 ```
 
-### 输入 / Input
+校准规则：
+
+Calibration rule:
 
 ```text
-configs/models/mock_loop.json
-configs/benchmarks/looped_core.json
-configs/experiments/collect_traces_mock.json
+For each group g and threshold tau:
+  accept tokens with score <= tau
+  compute Wilson upper confidence bound of empirical risk
+  choose largest tau whose risk upper bound <= epsilon
 ```
 
-### 命令 / Commands
+实现：
+
+Implementation:
+
+```text
+safeloop/evaluation/splits.py
+safeloop/risk/ucb_calibration.py
+```
+
+---
+
+## 4. 方法 / Methods
+
+### 4.1 Post-hoc SafeLoop-DAR
+
+特征：
+
+Features:
+
+```text
+confidence:
+  entropy, top1 probability, top1/top2 margin
+
+state trajectory:
+  hidden_delta, logit_delta, residual_novelty, depth_attention_stability
+
+risk metadata:
+  relative_depth, token_type, stage, group
+```
+
+对照：
+
+Baselines:
+
+```text
+fixed depth
+oracle halting
+entropy only
+margin only
+top1 probability
+confidence-only learned predictor
+hidden-delta-only
+DAR no token/stage
+SafeLoop-DAR-Lite
+SafeLoop-DAR-Full
+Ouro built-in early_exit_threshold
+```
+
+### 4.2 Halt-Aware Training
+
+目标：
+
+Goal:
+
+```text
+让模型训练时感知 recurrent-depth compute 与 premature-halting risk 的 trade-off。
+Make the model aware of the trade-off between recurrent-depth compute and
+premature-halting risk during training.
+```
+
+训练目标：
+
+Training objective:
+
+```text
+L = L_token
+  + alpha * L_intermediate
+  + beta  * risk_violation
+  + gamma * compute_penalty
+  + mu    * halting_margin
+```
+
+仓库中的两种实现：
+
+Two implementations in this repository:
+
+```text
+safeloop/controlled/halt_aware.py
+  controlled state training for quick mechanism tests
+
+safeloop/controlled/tiny_loop_lm.py
+  self-trained stdlib TinyLoopLM with token prototypes and learned depth offsets
+```
+
+---
+
+## 5. 实验 E0：Mock Pipeline
+
+目的：
+
+Goal:
+
+```text
+验证 trace -> task evaluation -> features -> calibration -> frontier -> overhead 全链路。
+Validate trace -> task evaluation -> features -> calibration -> frontier -> overhead.
+```
+
+命令：
+
+Commands:
 
 ```bash
 python experiments/collect_traces.py \
   --config configs/experiments/collect_traces_mock.json
+
+python experiments/run_task_evaluation.py \
+  --config configs/experiments/task_evaluation_mock.json
 
 python experiments/run_signal_prediction.py \
   --config configs/experiments/signal_prediction.json
 
 python experiments/run_frontier.py \
   --config configs/experiments/frontier.json
-
-python experiments/run_calibration.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/calibration
 ```
 
-### 输出 / Outputs
+通过条件：
+
+Pass criteria:
 
 ```text
-runs/mock_traces/teacher_forced.jsonl
-runs/signal_prediction/metrics.json
-runs/frontier/frontier.json
-runs/calibration/calibration.json
+all scripts finish
+frontier.json contains task_degradation and ucb calibration
+train/cal/test split exists in output
 ```
-
-### 检查点 / Checks
-
-- `teacher_forced.jsonl` 行数应大于 0。
-- `metrics.json` 应包含 `train` 和 `test`。
-- `frontier.json` 应包含 `fixed_depth_*`、`oracle_halting`、`safeloop_dar`。
-- `calibration.json` 应包含多个 `target_risk`。
 
 ---
 
-## 2. 实验 E1：Loop Depth Characterization
+## 6. 实验 E1：自训练 TinyLoopLM
 
-### 目的 / Goal
+目的：
 
-证明不同任务、不同 token 类型确实需要不同循环深度。
+Goal:
 
-Show that different tasks and token types require different loop depths.
-
-### 关键问题 / Questions
-
-- 普通文本、标点是否更早稳定？
-- 数字、代码标识符、JSON 参数、实体是否需要更深计算？
-- 高风险 token 的 premature-exit error 是否更高？
-
-### 命令 / Commands
-
-Mock:
-
-```bash
-python experiments/collect_traces.py \
-  --config configs/experiments/collect_traces_mock.json
-
-python experiments/run_budget_scaling.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/mock_budget_scaling
+```text
+训练一个小型 LoopLM，并比较 untrained / standard pretraining / halt-aware pretraining。
+Train a small LoopLM and compare untrained / standard pretraining / halt-aware pretraining.
 ```
 
-Ouro-1.4B:
+模型：
+
+Model:
+
+```text
+TinyLoopLM:
+  stdlib-only
+  token prototype vocabulary
+  recurrent hidden-state interpolation
+  learned group-wise depth offset
+  optional halt-aware risk/compute loss
+```
+
+训练命令：
+
+Training command:
+
+```bash
+python experiments/train_tiny_loop_lm.py \
+  --config configs/experiments/train_tiny_loop_lm.json
+```
+
+输出：
+
+Outputs:
+
+```text
+runs/tiny_loop_lm_training/untrained_checkpoint.json
+runs/tiny_loop_lm_training/standard_checkpoint.json
+runs/tiny_loop_lm_training/halt_aware_checkpoint.json
+runs/tiny_loop_lm_training/training_summary.json
+```
+
+frontier 比较：
+
+Frontier comparison:
+
+```bash
+python experiments/run_pretraining_frontier_comparison.py \
+  --config configs/experiments/tiny_loop_lm_frontier_comparison.json
+```
+
+主要指标：
+
+Main metrics:
+
+```text
+best avg depth at target risk
+fixed-depth risk before/after training
+standard_vs_halt_aware.claim_pass
+baseline_vs_halt_aware.claim_pass
+improved_targets / comparable_targets
+fixed_depth_non_worse / fixed_depth_comparable
+```
+
+通过条件：
+
+Pass criteria:
+
+```text
+halt-aware frontier improves over standard TinyLoopLM at all target risks
+fixed-depth risk is not worse
+improvement appears on multiple token/stage groups
+```
+
+---
+
+## 7. 实验 E2：Controlled Halt-Aware State Training
+
+目的：
+
+Goal:
+
+```text
+快速验证 halt-aware depth adjustment 机制是否有效。
+Quickly validate the halt-aware depth-adjustment mechanism.
+```
+
+命令：
+
+Commands:
+
+```bash
+python experiments/run_halt_aware_pretraining.py \
+  --config configs/experiments/halt_aware_pretraining.json
+
+python experiments/run_pretraining_frontier_comparison.py \
+  --config configs/experiments/pretraining_frontier_comparison.json
+```
+
+---
+
+## 8. 实验 E3：Depth Signal Prediction
+
+目的：
+
+Goal:
+
+```text
+验证 depth-state signals 是否比 confidence-only 更能预测 task degradation。
+Test whether depth-state signals predict task degradation better than confidence-only.
+```
+
+命令：
+
+Command:
+
+```bash
+python experiments/run_signal_prediction.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --output-dir runs/signal_prediction
+```
+
+报告：
+
+Report:
+
+```text
+train metrics
+calibration metrics
+test metrics
+label rate
+prediction loss
+```
+
+---
+
+## 9. 实验 E4：Risk Calibration
+
+目的：
+
+Goal:
+
+```text
+证明方法不是普通阈值调参，而是 train/cal/test 风险校准。
+Show this is calibrated risk control rather than threshold tuning.
+```
+
+命令：
+
+Command:
+
+```bash
+python experiments/run_calibration.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --calibration-method ucb \
+  --targets 0.005,0.01,0.02,0.05,0.1 \
+  --output-dir runs/calibration
+```
+
+报告：
+
+Report:
+
+```text
+target risk
+calibration empirical risk
+calibration upper bound
+test empirical risk
+coverage
+avg depth
+```
+
+---
+
+## 10. 实验 E5：Risk-Compute Frontier
+
+目的：
+
+Goal:
+
+```text
+比较 fixed depth、confidence-only、SafeLoop-DAR、halt-aware training 的风险-计算曲线。
+Compare the risk-compute frontier of fixed depth, confidence-only, SafeLoop-DAR,
+and halt-aware training.
+```
+
+命令：
+
+Command:
+
+```bash
+python experiments/run_frontier.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --calibration-method ucb \
+  --output-dir runs/frontier
+```
+
+主表：
+
+Main table:
+
+```text
+method
+target risk
+empirical risk
+avg depth
+coverage
+risk by group
+avg depth by group
+```
+
+---
+
+## 11. 实验 E6：Token / Stage Risk Control
+
+目的：
+
+Goal:
+
+```text
+证明 token/stage group 是 group-conditional calibration metadata，而不是 regex trick。
+Show token/stage groups are calibration metadata, not a regex trick.
+```
+
+命令：
+
+Command:
+
+```bash
+python experiments/run_token_stage_ablation.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --output-dir runs/token_stage_ablation
+```
+
+对照：
+
+Comparisons:
+
+```text
+confidence
+confidence_hidden
+DAR implicit no group
+explicit group only
+random group
+DAR hybrid full
+```
+
+---
+
+## 12. 实验 E7：Residual Novelty And Depth Stability
+
+目的：
+
+Goal:
+
+```text
+分析 residual novelty 和 depth stability 是否对应下一轮循环的边际收益。
+Analyze whether residual novelty and depth stability correspond to next-depth marginal gain.
+```
+
+命令：
+
+Command:
+
+```bash
+python experiments/run_residual_convergence.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --output-dir runs/residual_convergence
+```
+
+---
+
+## 13. 实验 E8：真实模型接入 / Real Model Validation
+
+真实 Ouro 实验必须先验证 depth-control：
+
+Real Ouro experiments must first validate depth control:
+
+```bash
+python experiments/validate_depth_control.py \
+  --config configs/experiments/collect_traces_ouro_1_4b.json \
+  --output-dir runs/ouro_1_4b_depth_control
+```
+
+通过条件：
+
+Pass criteria:
+
+```text
+hidden states differ across depths
+logits differ across depths
+latency changes with depth
+full-depth output matches normal model behavior
+```
+
+然后再跑：
+
+Then run:
 
 ```bash
 python experiments/collect_traces.py \
   --config configs/experiments/collect_traces_ouro_1_4b.json
 
-python experiments/run_budget_scaling.py \
+python experiments/run_task_evaluation.py \
   --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_budget_scaling
-```
-
-### 指标 / Metrics
-
-```text
-average required depth
-fixed-depth teacher-consistency risk
-high-risk token error
-token_type -> avg depth
-task -> depth distribution
-```
-
-### 预期结论 / Expected Conclusion
-
-高风险 token 的稳定深度通常更高；固定浅层 depth 会在数字、代码、JSON 参数和实体上产生更高风险。
-
-High-risk tokens usually require deeper states; fixed shallow depth should
-produce higher errors on numbers, code, JSON values, and entities.
-
----
-
-## 3. 实验 E2：Depth Signal Prediction
-
-### 目的 / Goal
-
-验证 residual novelty 和 depth attention stability 是否比 confidence-only 特征更能预测 safe exit。
-
-Test whether residual novelty and depth attention stability predict safe exit
-better than confidence-only features.
-
-### 命令 / Commands
-
-```bash
-python experiments/run_signal_prediction.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/mock_signal_prediction
-
-python experiments/run_token_stage_ablation.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/mock_token_stage_ablation
-```
-
-真实模型：
-
-Real model:
-
-```bash
-python experiments/run_signal_prediction.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_signal_prediction
-
-python experiments/run_token_stage_ablation.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_token_stage_ablation
-```
-
-### 对比特征 / Feature Sets
-
-代码中 `run_token_stage_ablation.py` 目前比较：
-
-The current ablation compares:
-
-```text
-confidence
-confidence_hidden
-dar
-dar_token_stage
-```
-
-### 指标 / Metrics
-
-```text
-AUROC
-Brier score
-ECE
-label rate
-average risk score
-```
-
-### 预期结论 / Expected Conclusion
-
-`dar` 和 `dar_token_stage` 应该优于 `confidence`，说明深度信息流特征具有额外预测价值。
-
-`dar` and `dar_token_stage` should outperform `confidence`, showing that
-depth-state signals add predictive value.
-
----
-
-## 4. 实验 E3：Risk-Compute Frontier
-
-### 目的 / Goal
-
-验证 SafeLoop-DAR 是否能在相同风险下降低平均 depth，或在相同平均 depth 下提高质量。
-
-Evaluate whether SafeLoop-DAR reduces average depth at the same risk, or improves
-quality at the same average depth.
-
-### 命令 / Commands
-
-Mock:
-
-```bash
-python experiments/run_frontier.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/mock_frontier \
-  --targets 0.005,0.01,0.02,0.05,0.1
-
-python scripts/plot_frontier.py \
-  --frontier runs/mock_frontier/frontier.json
-```
-
-Ouro:
-
-```bash
-python experiments/run_frontier.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_frontier \
-  --targets 0.005,0.01,0.02,0.05,0.1
-```
-
-### 对比方法 / Compared Methods
-
-```text
-fixed_depth_1 ... fixed_depth_T
-oracle_halting
-entropy_only
-margin_only
-confidence
-dar_no_token_stage
-safeloop_dar
-```
-
-### 指标 / Metrics
-
-```text
-avg_depth
-teacher-consistency risk
-target_risk
-group thresholds
-tokens
-```
-
-### 预期结论 / Expected Conclusion
-
-在相同 `target_risk` 下，`safeloop_dar` 的 `avg_depth` 应低于 confidence baseline，且风险不显著超过目标。
-
-At the same `target_risk`, `safeloop_dar` should use lower `avg_depth` than
-confidence baselines without substantially exceeding the target risk.
-
----
-
-## 5. 实验 E4：Risk Calibration Validity
-
-### 目的 / Goal
-
-验证目标风险与测试集 empirical risk 是否匹配。
-
-Check whether target risk matches empirical test risk.
-
-### 命令 / Commands
-
-```bash
-python experiments/run_calibration.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --targets 0.005,0.01,0.02,0.05,0.1 \
-  --output-dir runs/mock_calibration
-```
-
-Ouro:
-
-```bash
-python experiments/run_calibration.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --targets 0.005,0.01,0.02,0.05,0.1 \
-  --output-dir runs/ouro_1_4b_calibration
-```
-
-### 指标 / Metrics
-
-```text
-target_risk
-calibration.coverage
-calibration.risk
-test.coverage
-test.risk
-thresholds by group
-```
-
-### 重要声明 / Important Claim Boundary
-
-只在 in-domain split 中讨论 calibration validity。跨任务、跨模型只报告 empirical transfer。
-
-Calibration validity is discussed only in in-domain splits. Cross-task and
-cross-model results are empirical transfer results.
-
----
-
-## 6. 实验 E5：Token / Stage Risk Control
-
-### 目的 / Goal
-
-验证 token/stage-aware 特征是否能降低高风险 token 的提前退出错误。
-
-Evaluate whether token/stage-aware features reduce premature-exit errors for
-high-risk tokens.
-
-### 命令 / Commands
-
-```bash
-python experiments/run_token_stage_ablation.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_token_stage_ablation
-```
-
-也可以专门评估高风险标签：
-
-High-risk label evaluation:
-
-```bash
-python experiments/run_token_stage_ablation.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --label-type high_risk_teacher \
-  --output-dir runs/ouro_1_4b_high_risk_ablation
-```
-
-### 高风险组 / High-Risk Groups
-
-```text
-math_final_number
-number
-code_identifier
-json_value
-tool_argument
-retrieved_entity
-citation_entity
-```
-
-### 指标 / Metrics
-
-```text
-high-risk label AUROC
-high-risk Brier
-high-risk ECE
-coverage under group thresholds
-```
-
----
-
-## 7. 实验 E6：Residual Convergence Bench
-
-### 目的 / Goal
-
-验证 residual novelty 是否和下一 depth 的收益相关。
-
-Test whether residual novelty correlates with next-depth gain.
-
-### 命令 / Commands
-
-```bash
-python experiments/run_residual_convergence.py \
-  --trace runs/mock_traces/teacher_forced.jsonl \
-  --output-dir runs/mock_residual_convergence
-
-python experiments/run_residual_convergence.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_residual_convergence
-```
-
-### 指标 / Metrics
-
-```text
-pairs
-pearson_novelty_next_gain
-avg_novelty
-avg_next_gain
-```
-
-### 预期结论 / Expected Conclusion
-
-如果 residual novelty 是有效信号，`pearson_novelty_next_gain` 应为正，低 novelty token 的继续计算收益应更低。
-
-If residual novelty is useful, `pearson_novelty_next_gain` should be positive,
-and low-novelty tokens should have lower next-step gain.
-
----
-
-## 8. 实验 E7：LoopFormer / Base-Loop-EE / TMLT-EE 泛化
-
-### 目的 / Goal
-
-验证 SafeLoop-DAR 不是 Ouro-specific thresholding trick。
-
-Verify that SafeLoop-DAR is not an Ouro-specific thresholding trick.
-
-### 命令 / Commands
-
-LoopFormer:
-
-```bash
-python experiments/collect_traces.py \
-  --config configs/experiments/collect_traces_loopformer.json
+  --output-dir runs/ouro_1_4b_task_eval
 
 python experiments/run_frontier.py \
-  --trace runs/loopformer_traces/teacher_forced.jsonl \
-  --output-dir runs/loopformer_frontier
-```
-
-Base-Loop-EE:
-
-```bash
-python experiments/collect_traces.py \
-  --config configs/experiments/collect_traces_base_loop_ee.json
-
-python experiments/run_frontier.py \
-  --trace runs/base_loop_ee_traces/teacher_forced.jsonl \
-  --output-dir runs/base_loop_ee_frontier
-```
-
-TMLT-EE:
-
-```bash
-python experiments/collect_traces.py \
-  --config configs/experiments/collect_traces_tmlt_ee.json
-
-python experiments/run_frontier.py \
-  --trace runs/tmlt_ee_traces/teacher_forced.jsonl \
-  --output-dir runs/tmlt_ee_frontier
-```
-
-### 指标 / Metrics
-
-```text
-avg_depth
-risk
-frontier shape
-SafeLoop-DAR vs confidence baselines
-```
-
-### 解释边界 / Interpretation Boundary
-
-LoopFormer / Base-Loop-EE 的 depth 机制不一定和 Ouro 完全相同；这里只验证 depth-state signal 是否跨循环模型族仍有预测价值。
-
-LoopFormer / Base-Loop-EE depth is not necessarily mechanistically identical to
-Ouro depth. This experiment only tests whether depth-state signals remain
-predictive across looped model families.
-
----
-
-## 9. 实验 E8：Controlled LoopTiny-style Mechanism Study
-
-### 目的 / Goal
-
-用可控 synthetic task 验证机制，而不是追求大模型性能。
-
-Use controlled synthetic tasks for mechanism validation rather than headline
-model performance.
-
-### 命令 / Commands
-
-```bash
-python experiments/collect_traces.py \
-  --config configs/experiments/collect_traces_looptiny.json
-
-python experiments/run_residual_convergence.py \
-  --trace runs/looptiny_traces/teacher_forced.jsonl \
-  --output-dir runs/looptiny_residual_convergence
-
-python experiments/run_frontier.py \
-  --trace runs/looptiny_traces/teacher_forced.jsonl \
-  --output-dir runs/looptiny_frontier
-```
-
-### 关注点 / Focus
-
-```text
-known reasoning depth
-required depth vs predicted exit depth
-residual novelty decreases after convergence
-oracle gap
+  --trace runs/ouro_1_4b_task_eval/teacher_forced.evaluated.jsonl \
+  --label-type task_degradation \
+  --calibration-method ucb \
+  --output-dir runs/ouro_1_4b_frontier
 ```
 
 ---
 
-## 10. 实验 E9：Free-Generation End-to-End
+## 14. 实验 E9：Ouro Built-In Early Exit Baseline
 
-### 目的 / Goal
+目的：
 
-验证真实自回归生成下的端到端行为。
+Goal:
 
-Evaluate end-to-end behavior under real autoregressive generation.
+```text
+正面对比 Ouro 原生 early_exit_threshold。
+Directly compare against Ouro's built-in early_exit_threshold.
+```
 
-### 命令 / Commands
+命令：
 
-Mock:
+Command:
 
 ```bash
-python experiments/run_free_generation.py \
-  --config configs/experiments/free_generation_mock.json
+python experiments/run_builtin_early_exit.py \
+  --config configs/experiments/collect_traces_ouro_1_4b.json \
+  --output-dir runs/ouro_1_4b_builtin_exit
 ```
 
-真实模型可复制 collect config，把 `mode` 改为 `free_generation`。
+报告：
 
-For real models, copy a collect config and set `mode` to `free_generation`.
-
-### 输出 / Outputs
+Report:
 
 ```text
-runs/*/free_generation.jsonl
-runs/*/summary.json
-```
-
-### 指标 / Metrics
-
-当前代码主要生成 trace；后续论文级评估应补充：
-
-The current code emits traces. Paper-level evaluation should add:
-
-```text
+threshold
 task accuracy
-pass@1
-JSON validity
-tool success
-answer EM/F1
-output length
+task degradation risk
+avg depth
 latency
 ```
 
 ---
 
-## 11. 实验 E10：Overhead-Aware Risk-Compute Frontier
+## 15. 实验 E10：Latency And Overhead
 
-### 目的 / Goal
+目的：
 
-验证动态退出不只是减少平均循环深度，还要在考虑刹车系统自身开销后真正降低每 token 延迟。
-
-Verify that dynamic halting reduces per-token latency after accounting for the
-controller overhead, not merely average loop depth.
-
-### 核心问题 / Key Questions
-
-- hidden-only 刹车路径是否明显小于一轮 loop 计算？
-- 每轮 full-vocab logits + CPU sync 是否会抵消 early halting 收益？
-- SafeLoop-DAR 的 `effective_speedup` 是否在主要风险目标下仍大于 1？
-- 哪些实现 profile 的 `min_saved_depth_to_break_even` 过高，不适合作为 serving fast path？
-
-- Is the hidden-only controller much cheaper than one loop step?
-- Does full-vocab logits plus CPU sync at every depth erase early-halting gains?
-- Does SafeLoop-DAR keep `effective_speedup > 1` under major risk targets?
-- Which implementation profiles have too high a `min_saved_depth_to_break_even`
-  for serving?
-
-### 输入 / Input
-
-该实验读取 E3 产生的 `frontier.json`，不重新运行模型：
-
-This experiment reads `frontier.json` from E3 and does not rerun the model:
+Goal:
 
 ```text
-runs/frontier/frontier.json
-configs/experiments/overhead_frontier.json
+证明省掉的 recurrent loop 大于刹车系统开销。
+Show saved recurrent-loop compute exceeds controller overhead.
 ```
 
-### 命令 / Commands
+命令：
 
-Mock:
-
-```bash
-python experiments/run_frontier.py \
-  --config configs/experiments/frontier.json
-
-python experiments/run_overhead_frontier.py \
-  --config configs/experiments/overhead_frontier.json
-
-python scripts/plot_overhead_frontier.py \
-  --overhead-frontier runs/overhead_frontier/overhead_frontier.json
-```
-
-Ouro-1.4B:
-
-```bash
-python experiments/run_frontier.py \
-  --trace runs/ouro_1_4b_traces/teacher_forced.jsonl \
-  --output-dir runs/ouro_1_4b_frontier
-
-python experiments/run_overhead_frontier.py \
-  --frontier runs/ouro_1_4b_frontier/frontier.json \
-  --output-dir runs/ouro_1_4b_overhead_frontier \
-  --loop-step-ms <measured_loop_step_ms> \
-  --full-depth 4
-```
-
-### 默认开销 profile / Default Overhead Profiles
-
-```text
-hidden_only_fast_path
-  每轮只计算 hidden delta / residual novelty / depth stability，状态留在 GPU。
-  Hidden-delta, residual-novelty, and depth-stability features only; states stay on GPU.
-
-hybrid_exit_only_lm_head
-  每轮用 hidden-only 判断，真正退出时才走一次 LM head。
-  Hidden-only decisions at each depth; one LM head call only at exit.
-
-logits_every_depth_cpu_sync
-  每轮都算 full-vocab logits 并同步到 CPU，是应避免的反例路径。
-  Full-vocab logits and CPU sync at every depth; this is the anti-pattern.
-```
-
-### 输出 / Outputs
-
-```text
-runs/overhead_frontier/overhead_frontier.json
-```
-
-### 指标 / Metrics
-
-```text
-baseline_full_depth_ms_per_token
-saved_loop_steps
-model_compute_ms_per_token
-brake_overhead_ms_per_token
-total_ms_per_token
-gross_saved_ms_per_token
-net_saved_ms_per_token
-effective_speedup
-overhead_loop_step_equivalent
-min_saved_depth_to_break_even
-is_break_even
-overhead_exceeds_one_loop_step
-overhead_share
-```
-
-### 判定标准 / Decision Rule
-
-动态退出真正值得部署，需要同时满足：
-
-For dynamic halting to be deployment-worthy:
-
-```text
-effective_speedup > 1
-net_saved_ms_per_token > 0
-overhead_loop_step_equivalent < saved_loop_steps
-风险指标不显著超过目标风险
-```
-
-### 预期结论 / Expected Conclusion
-
-如果实现为 GPU-resident hidden-only fast path，刹车开销应明显小于一轮 loop step，SafeLoop-DAR 的净收益应保持为正。
-如果实现为每轮 full-vocab logits + CPU sync，则可能出现 `overhead_exceeds_one_loop_step = true`，说明该实现路径不适合 serving。
-
-With a GPU-resident hidden-only fast path, controller overhead should be far
-below one loop step and SafeLoop-DAR should retain positive net savings. With
-full-vocab logits plus CPU sync at every depth, `overhead_exceeds_one_loop_step`
-may become true, showing that this implementation path is unsuitable for
-serving.
-
----
-
-## 12. 推荐运行顺序 / Recommended Run Order
-
-### P0: 管线验证 / Pipeline validation
-
-```text
-E0 mock smoke test
-E2 mock signal prediction
-E3 mock frontier
-E10 mock overhead-aware frontier
-E4 mock calibration
-```
-
-### P1: 主实验 / Main experiments
-
-```text
-Ouro-1.4B trace
-Ouro-1.4B signal prediction
-Ouro-1.4B frontier
-Ouro-1.4B overhead-aware frontier
-Ouro-1.4B calibration
-Ouro-1.4B token/stage ablation
-```
-
-### P2: 扩展实验 / Extension experiments
-
-```text
-Ouro-2.6B
-LoopFormer
-Base-Loop-EE
-TMLT-EE
-LoopTiny-style controlled study
-```
-
-### P3: 论文补强 / Paper strengthening
-
-```text
-Free-generation end-to-end metrics
-task-level degradation labels
-larger benchmark integration
-cross-model transfer
-runtime overhead analysis
-```
-
----
-
-## 13. 复现记录模板 / Reproducibility Record Template
-
-每次正式实验建议保存以下信息：
-
-For every formal experiment, save:
-
-```text
-Date:
-Git commit:
 Command:
-Model:
-Model revision:
-Dataset / benchmark config:
-GPU:
-CUDA:
-Python:
-torch:
-transformers:
-Seed:
-Output directory:
-Notes:
-```
-
-获取当前 commit：
-
-Get current commit:
 
 ```bash
-git rev-parse HEAD
+python experiments/profile_latency.py \
+  --trace runs/mock_task_evaluation/teacher_forced.evaluated.jsonl \
+  --output-dir runs/latency_profile
+
+python experiments/run_overhead_frontier.py \
+  --frontier runs/frontier/frontier.json \
+  --profile runs/latency_profile/profile.json \
+  --output-dir runs/overhead_frontier
 ```
 
-记录 Python 包：
+真实论文实验需要 GPU wall-clock profiler 替换 trace-based profile。
 
-Record Python packages:
+Paper experiments must replace the trace-based profile with GPU wall-clock
+profiling.
 
-```bash
-python -m pip freeze > runs/<run_name>/environment.txt
+---
+
+## 16. 论文级主表 / Paper-Level Main Tables
+
+```text
+Table 1: SafeLoop-DAR post-hoc frontier on Ouro-1.4B
+Table 2: Calibration validity under target epsilon
+Table 3: Ablation of confidence / residual novelty / depth stability / token group
+Table 4: TinyLoopLM standard vs halt-aware training frontier
+Table 5: Ouro-2.6B scaling
+Table 6: Latency and overhead-aware speedup
+Table 7: Failure cases and high-cost semantic risk
 ```
 
 ---
 
-## 14. 当前限制 / Current Limitations
+## 17. 最低投稿门槛 / Minimum Submission Gate
 
-- 真实 Ouro / LoopFormer depth-control 字段依赖各自 remote code，需要小样本 smoke test 验证。
-- 当前 free-generation 主要收集 trace，任务级 metric 还需要接入具体 benchmark evaluator。
-- `task_degradation` label 当前支持 metadata 接口，真实任务需补充 evaluator 写入。
-- Cross-domain calibration 不应声明 formal guarantee。
-- Overhead-aware frontier 当前默认是估算模型；正式论文需要用目标 GPU 的实测 `loop_step_ms`、LM head 开销和调度开销替换默认 profile。
+若目标是 ICML / NeurIPS / ICLR，至少需要完成：
 
-Current limitations:
+For ICML / NeurIPS / ICLR, at least complete:
 
-- Real Ouro / LoopFormer depth-control fields depend on remote code and require
-  smoke testing.
-- Free-generation currently focuses on trace collection; task-level metrics need
-  benchmark-specific evaluators.
-- `task_degradation` labels are supported through metadata, but real tasks need
-  evaluators to populate them.
-- Cross-domain calibration should not be presented as a formal guarantee.
-- The overhead-aware frontier is currently an estimation model; paper experiments
-  should replace default profiles with measured `loop_step_ms`, LM-head overhead,
-  and scheduler overhead on the target GPU.
+```text
+TinyLoopLM halt-aware training improves frontier
+Ouro-1.4B depth-control validation passes
+Ouro-1.4B runs on GSM8K + MATH500 + JSON/tool + RAG/entity
+task_degradation is the main label
+train/cal/test and UCB calibration are used
+Ouro built-in early_exit_threshold baseline is included
+measured latency shows positive speedup for SafeLoop-DAR-Lite
+failure analysis is reported
+```
+
+---
+
+## 18. 当前仓库覆盖 / Current Code Coverage
+
+已经实现：
+
+Implemented:
+
+```text
+mock trace collection
+task degradation annotation
+request-level train/cal/test split
+UCB group calibration
+post-hoc frontier
+token/stage ablation
+latency profile interface
+overhead-aware frontier
+controlled halt-aware state training
+self-trained TinyLoopLM
+TinyLoopLM before/after frontier comparison
+local benchmark manifest loader
+```
+
+仍需服务器完成：
+
+Needs server-side completion:
+
+```text
+real Ouro trace collection
+real benchmark data ingestion
+HumanEval sandboxed execution
+GPU wall-clock profiling
+Ouro continued pretraining or LoRA halting-head training
+```

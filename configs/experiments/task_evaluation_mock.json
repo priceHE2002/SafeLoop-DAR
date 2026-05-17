@@ -1,0 +1,5 @@
+{
+  "trace_path": "runs/mock_traces/teacher_forced.jsonl",
+  "output_dir": "runs/mock_task_evaluation",
+  "output_name": "teacher_forced.evaluated.jsonl"
+}

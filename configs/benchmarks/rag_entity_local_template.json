@@ -1,0 +1,14 @@
+{
+  "name": "rag_entity_local",
+  "task": "rag",
+  "stage": "rag_entity",
+  "source_path": "../../data/rag_entity.jsonl",
+  "format": "jsonl",
+  "limit": 256,
+  "field_map": {
+    "request_id": "id",
+    "expected": "answer"
+  },
+  "prompt_template": "Context:\n{context}\n\nQuestion: {question}\nAnswer:",
+  "metadata_fields": ["context", "question", "answer", "gold_entities"]
+}

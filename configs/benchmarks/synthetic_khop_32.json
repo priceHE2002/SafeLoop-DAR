@@ -1,0 +1,6 @@
+{
+  "name": "synthetic_khop_32",
+  "generator": "synthetic_khop",
+  "num_samples": 32,
+  "max_hops": 8
+}

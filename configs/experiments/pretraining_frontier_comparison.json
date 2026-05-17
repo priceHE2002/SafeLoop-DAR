@@ -1,0 +1,11 @@
+{
+  "benchmark_config": "configs/benchmarks/synthetic_mixed_control_60.json",
+  "baseline_model_config": "runs/halt_aware_pretraining/baseline_model_config.json",
+  "standard_model_config": "runs/halt_aware_pretraining/standard_model_config.json",
+  "trained_model_config": "runs/halt_aware_pretraining/halt_aware_model_config.json",
+  "output_dir": "runs/pretraining_frontier_comparison",
+  "max_new_tokens": 4,
+  "risk_targets": [0.01, 0.02, 0.05, 0.1],
+  "delta": 0.05,
+  "split_salt": "halt-aware-pt-v1"
+}

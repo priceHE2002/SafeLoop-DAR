@@ -116,7 +116,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate fixed budget scaling.")
     parser.add_argument("--trace", required=True)
     parser.add_argument("--output-dir", default="runs/budget_scaling")
-    parser.add_argument("--label-type", default="teacher_consistency")
+    parser.add_argument("--label-type", default="task_degradation")
     args = parser.parse_args()
 
     rows = FeatureBuilder().build_many(read_traces(args.trace), label_type=args.label_type)

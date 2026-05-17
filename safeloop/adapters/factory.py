@@ -6,6 +6,7 @@ from safeloop.adapters.loopformer_adapter import LoopFormerAdapter
 from safeloop.adapters.looptiny_adapter import LoopTinyAdapter
 from safeloop.adapters.mock_adapter import MockLoopAdapter
 from safeloop.adapters.ouro_adapter import OuroAdapter
+from safeloop.adapters.tiny_loop_lm_adapter import TinyLoopLMAdapter
 
 
 def build_adapter(cfg: dict) -> DepthModelAdapter:
@@ -20,5 +21,6 @@ def build_adapter(cfg: dict) -> DepthModelAdapter:
         return LayerSkipAdapter.from_config(cfg)
     if name == "looptiny":
         return LoopTinyAdapter.from_config(cfg)
+    if name == "tiny_loop_lm":
+        return TinyLoopLMAdapter.from_config(cfg)
     raise ValueError(f"Unknown adapter: {name}")
-

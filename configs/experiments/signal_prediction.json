@@ -1,7 +1,8 @@
 {
-  "trace_path": "runs/mock_traces/teacher_forced.jsonl",
-  "label_type": "teacher_consistency",
+  "trace_path": "runs/mock_task_evaluation/teacher_forced.evaluated.jsonl",
+  "label_type": "task_degradation",
   "risk_target": 0.02,
-  "output_dir": "runs/signal_prediction"
+  "output_dir": "runs/signal_prediction",
+  "train_fraction": 0.5,
+  "calibration_fraction": 0.25
 }
-

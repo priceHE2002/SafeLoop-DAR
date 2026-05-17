@@ -1,0 +1,14 @@
+{
+  "benchmark_config": "configs/benchmarks/synthetic_mixed_control_60.json",
+  "output_dir": "runs/tiny_loop_lm_training",
+  "standard_model_name": "TinyLoopLM-Standard",
+  "halt_aware_model_name": "TinyLoopLM-HaltAware",
+  "max_depth": 8,
+  "hidden_size": 24,
+  "seed": 23,
+  "epochs": 20,
+  "learning_rate": 0.25,
+  "compute_penalty": 0.1,
+  "risk_penalty": 1.0,
+  "halt_margin": 0.25
+}

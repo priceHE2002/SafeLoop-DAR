@@ -12,6 +12,11 @@ def teacher_consistency_error(trace: TokenTrace, depth: int) -> int:
 
 
 def high_risk_teacher_error(trace: TokenTrace, depth: int) -> int:
+    mapping = trace.metadata.get("high_cost_error_by_depth", {})
+    if str(depth) in mapping:
+        return int(mapping[str(depth)])
+    if depth in mapping:
+        return int(mapping[depth])
     high_risk = trace.token_type in {
         "math_final_number",
         "number",

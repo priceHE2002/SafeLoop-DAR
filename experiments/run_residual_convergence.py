@@ -22,7 +22,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Measure novelty vs next-depth gain.")
     parser.add_argument("--trace", required=True)
     parser.add_argument("--output-dir", default="runs/residual_convergence")
-    parser.add_argument("--label-type", default="teacher_consistency")
+    parser.add_argument("--label-type", default="task_degradation")
     args = parser.parse_args()
 
     traces = read_traces(args.trace)

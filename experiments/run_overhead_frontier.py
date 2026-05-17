@@ -49,6 +49,7 @@ def main() -> None:
     parser.add_argument("--frontier")
     parser.add_argument("--output-dir")
     parser.add_argument("--loop-step-ms", type=float)
+    parser.add_argument("--profile")
     parser.add_argument("--full-depth", type=int)
     args = parser.parse_args()
 
@@ -58,7 +59,9 @@ def main() -> None:
     if not frontier_path:
         raise SystemExit("--frontier or config.frontier_path is required")
     output_dir = args.output_dir or cfg.get("output_dir", "runs/overhead_frontier")
-    loop_step_ms = args.loop_step_ms or float(cfg.get("loop_step_ms", 1.0))
+    profile_path = args.profile or cfg.get("profile_path")
+    profile = load_json(_resolve(root, profile_path)) if profile_path else {}
+    loop_step_ms = args.loop_step_ms or float(profile.get("loop_step_ms", cfg.get("loop_step_ms", 1.0)))
     full_depth = args.full_depth if args.full_depth is not None else cfg.get("full_depth")
     full_depth = int(full_depth) if full_depth is not None else None
 
@@ -69,6 +72,8 @@ def main() -> None:
         loop_step_ms=loop_step_ms,
         full_depth=full_depth,
     )
+    if profile:
+        report["measured_profile"] = profile
     out_dir = ensure_dir(_resolve(root, output_dir))
     write_json(out_dir / "overhead_frontier.json", report)
 

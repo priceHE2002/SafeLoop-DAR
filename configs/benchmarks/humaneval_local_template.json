@@ -1,0 +1,14 @@
+{
+  "name": "humaneval_local",
+  "task": "humaneval",
+  "stage": "code_generation",
+  "source_path": "../../data/humaneval.jsonl",
+  "format": "jsonl",
+  "limit": 164,
+  "field_map": {
+    "request_id": "task_id",
+    "expected": "canonical_solution"
+  },
+  "prompt_template": "{prompt}",
+  "metadata_fields": ["task_id", "prompt", "canonical_solution", "test", "entry_point"]
+}

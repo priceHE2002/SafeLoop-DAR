@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument("--train-trace", required=True)
     parser.add_argument("--test-trace", required=True)
     parser.add_argument("--output-dir", default="runs/transfer")
-    parser.add_argument("--label-type", default="teacher_consistency")
+    parser.add_argument("--label-type", default="task_degradation")
     args = parser.parse_args()
 
     builder = FeatureBuilder()

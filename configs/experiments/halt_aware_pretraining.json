@@ -1,0 +1,10 @@
+{
+  "model_config": "configs/models/looptiny_trainable_baseline.json",
+  "benchmark_config": "configs/benchmarks/synthetic_mixed_control_60.json",
+  "output_dir": "runs/halt_aware_pretraining",
+  "epochs": 16,
+  "learning_rate": 0.35,
+  "compute_penalty": 0.1,
+  "risk_penalty": 1.0,
+  "halt_margin": 0.25
+}
