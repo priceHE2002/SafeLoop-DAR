@@ -1,0 +1,10 @@
+{
+  "trace_path": "runs/mock_task_evaluation/teacher_forced.evaluated.jsonl",
+  "output_dir": "runs/bootstrap_frontier",
+  "feature_set": "hidden_lite",
+  "target_risk": 0.02,
+  "train_fraction": 0.5,
+  "calibration_fraction": 0.25,
+  "repeats": 500,
+  "split_salt": "bootstrap-v1"
+}

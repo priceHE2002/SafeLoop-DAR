@@ -1,8 +1,8 @@
 # 文件索引 / File Index
 
-本文档解释 SafeLoop-DAR 中主要文件的作用，便于复试讲解、论文复现和后续工程扩展。
+本文档解释 SafeLoop 中主要文件的作用，便于复试讲解、论文复现和后续工程扩展。
 
-This document explains the purpose of major files in SafeLoop-DAR for interview
+This document explains the purpose of major files in SafeLoop for interview
 discussion, paper reproducibility, and future engineering extensions.
 
 ## 配置文件 / Configuration Files
@@ -45,6 +45,13 @@ discussion, paper reproducibility, and future engineering extensions.
   Feature extraction modules for confidence, depth attention stability, residual
   novelty, and token/stage features.
 
+- `safeloop/features/sets.py`
+  统一定义 hidden-only / dynamics-only / full-with-groups feature sets。主论文结果应优先
+  使用 hidden-only 或 dynamics-only，避免 token-stage 泄漏。
+  Defines hidden-only / dynamics-only / full-with-groups feature sets. Main
+  paper results should prioritize hidden-only or dynamics-only sets to avoid
+  token-stage leakage.
+
 - `safeloop/risk/`
   风险标签、风险预测器、empirical calibration 和 UCB calibration。
   Risk labels, risk predictors, empirical calibration, and UCB calibration.
@@ -58,6 +65,20 @@ discussion, paper reproducibility, and future engineering extensions.
   指标计算、risk-compute frontier 汇总与开销感知 frontier 估算。
   Metric computation, risk-compute frontier summarization, and overhead-aware
   frontier estimation.
+
+- `safeloop/evaluation/sequence_risk.py`
+  将 token-depth rows 聚合为 request-depth rows，用于 sequence-level / request-level
+  风险控制。
+  Aggregates token-depth rows into request-depth rows for sequence-level /
+  request-level risk control.
+
+- `safeloop/evaluation/bootstrap.py`
+  bootstrap 均值置信区间。
+  Bootstrap confidence intervals for mean metrics.
+
+- `safeloop/evaluation/scaling.py`
+  residual novelty 随 recurrent depth 衰减的简易拟合工具。
+  Lightweight fitting utilities for residual novelty decay over recurrent depth.
 
 - `safeloop/evaluation/tasks/`
   GSM8K、MATH500、HumanEval、JSON、tool call、RAG/entity 的任务 evaluator。
@@ -91,9 +112,25 @@ discussion, paper reproducibility, and future engineering extensions.
   Train and evaluate the safe-exit risk predictor.
 
 - `experiments/run_frontier.py`
-  构建 risk-compute frontier，对比 fixed depth、oracle、confidence baseline 和 SafeLoop-DAR。
+  构建 token-level risk-compute frontier，对比 fixed depth、oracle、confidence baseline、
+  hidden-only SafeLoop 和 full-with-groups auxiliary upper bound。
   Build the risk-compute frontier across fixed depth, oracle, confidence
-  baselines, and SafeLoop-DAR.
+  baselines, hidden-only SafeLoop, and the full-with-groups auxiliary upper
+  bound.
+
+- `experiments/run_sequence_frontier.py`
+  构建 request-level risk-compute frontier，是 code/tool/RAG 等高代价任务更重要的风险控制入口。
+  Build request-level risk-compute frontiers, the preferred risk-control entry
+  for high-cost code/tool/RAG tasks.
+
+- `experiments/run_bootstrap_frontier.py`
+  对单个 frontier setting 进行 bootstrap CI 估计。
+  Estimate bootstrap CIs for a single frontier setting.
+
+- `experiments/run_depth_scaling_analysis.py`
+  拟合 `residual_novelty(depth) = a exp(-b depth) + c`，用于 safe test-time scaling 分析。
+  Fit `residual_novelty(depth) = a exp(-b depth) + c` for safe test-time scaling
+  analysis.
 
 - `experiments/run_calibration.py`
   验证 in-domain calibration validity。
@@ -104,8 +141,8 @@ discussion, paper reproducibility, and future engineering extensions.
   Attach task degradation and high-cost semantic risk metadata to traces.
 
 - `experiments/run_token_stage_ablation.py`
-  消融 token/stage 与 DAR 特征。
-  Ablate token/stage and DAR features.
+  消融 token/stage 与 depth-dynamics 特征。
+  Ablate token/stage and depth-dynamics features.
 
 - `experiments/run_residual_convergence.py`
   分析 residual novelty 与下一深度收益的相关性。

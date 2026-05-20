@@ -27,7 +27,7 @@ Required ablation:
 confidence only
 confidence + residual novelty
 confidence + depth attention stability
-SafeLoop-DAR full
+SafeLoop full
 ```
 
 ## 2. Full-depth 输出不一定正确

@@ -15,7 +15,7 @@ from safeloop.utils.io import ensure_dir, read_traces, write_json
 FEATURE_SETS = {
     "confidence": {"entropy", "top1_prob", "top1_top2_margin", "logit_delta"},
     "confidence_hidden": {"entropy", "top1_prob", "top1_top2_margin", "logit_delta", "hidden_delta"},
-    "dar_implicit_no_group": {
+    "implicit_no_group": {
         "entropy",
         "top1_prob",
         "top1_top2_margin",
@@ -38,7 +38,7 @@ FEATURE_SETS = {
         "group_entity",
     },
     "random_group": set(),
-    "dar_hybrid_full": set(),
+    "hybrid_full": set(),
 }
 
 
@@ -46,7 +46,7 @@ def mask_rows(rows, feature_set: str):
     allowed = FEATURE_SETS[feature_set]
     masked = []
     for row in rows:
-        if feature_set == "dar_hybrid_full":
+        if feature_set == "hybrid_full":
             clone = replace(row, features=dict(row.features))
         elif feature_set == "random_group":
             features = {
@@ -64,7 +64,7 @@ def mask_rows(rows, feature_set: str):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Feature ablation for token/stage and DAR signals.")
+    parser = argparse.ArgumentParser(description="Feature ablation for token/stage and depth-dynamics signals.")
     parser.add_argument("--trace", required=True)
     parser.add_argument("--output-dir", default="runs/token_stage_ablation")
     parser.add_argument("--label-type", default="task_degradation")

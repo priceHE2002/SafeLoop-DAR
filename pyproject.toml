@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "safeloop-dar"
+name = "safeloop"
 version = "0.1.0"
-description = "Risk-calibrated early halting experiments for looped language models"
+description = "Risk-calibrated test-time scaling experiments for looped language models"
 requires-python = ">=3.10"
 dependencies = []
 

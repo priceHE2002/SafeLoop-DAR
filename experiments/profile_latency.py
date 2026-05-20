@@ -44,7 +44,7 @@ def profile_from_trace(trace_path: str, output_dir: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Profile SafeLoop-DAR latency components.")
+    parser = argparse.ArgumentParser(description="Profile SafeLoop latency components.")
     parser.add_argument("--trace", required=True)
     parser.add_argument("--output-dir", default="runs/latency_profile")
     args = parser.parse_args()
